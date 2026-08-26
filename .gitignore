@@ -1,0 +1,8 @@
+bin/
+dist/
+*.log
+*.pem
+*.key
+watchcat-agent
+watchcat-agent.exe
+.DS_Store

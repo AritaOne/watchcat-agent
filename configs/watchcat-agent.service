@@ -1,0 +1,39 @@
+# Reference systemd unit.
+#
+# `watchcat-agent install` generates an equivalent unit automatically; this file
+# is here for anyone who prefers to manage the unit with configuration
+# management instead.
+#
+#   cp configs/watchcat-agent.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now watchcat-agent
+
+[Unit]
+Description=Watchcat Metrics Agent
+Documentation=https://github.com/aritaone/watchcat-agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/watchcat-agent run --config /etc/watchcat-agent/watchcat-agent.yaml
+Restart=always
+RestartSec=5
+
+# The agent only reads system counters, so it needs no privileges of its own.
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+# Keep the agent from ever becoming the reason a box falls over.
+MemoryMax=128M
+CPUQuota=20%
+
+[Install]
+WantedBy=multi-user.target

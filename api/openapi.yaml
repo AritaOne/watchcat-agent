@@ -1,0 +1,328 @@
+openapi: 3.1.0
+
+info:
+  title: watchcat-agent
+  version: 0.1.0
+  summary: Host metrics endpoint scraped by Prometheus.
+  description: |
+    HTTP surface of `watchcat-agent`, the host metrics agent that runs as a
+    background service on Linux, Windows and macOS.
+
+    The agent is a **pull target**: it never initiates outbound connections. A
+    remote Prometheus server scrapes `GET /metrics` on an interval and stores
+    the result. The other two endpoints exist for health checking and for a
+    human opening the port in a browser.
+
+    ### Configurable surface
+
+    Two things in this document are configuration, not constants:
+
+    - **The metrics path.** `/metrics` is the default; `server.metrics_path` in
+      the agent config moves it (e.g. `/internal/metrics`). Only that one route
+      moves — `/` and `/healthz` are fixed.
+    - **Scheme and port.** The default listener is `http://0.0.0.0:9800`.
+      Setting `server.tls_cert_file` and `server.tls_key_file` switches it to
+      HTTPS (TLS 1.2 minimum). Use the `servers` variables below to point this
+      document at a real host.
+
+    ### Authentication
+
+    Authentication is **off by default**. When `server.bearer_token` is set,
+    `GET /metrics` requires `Authorization: Bearer <token>` and returns `401`
+    otherwise. `/` and `/healthz` stay open on purpose, so a load balancer or
+    uptime check does not need the shared secret.
+
+    Because the endpoint discloses hostnames, mount points and network
+    interfaces, treat it as internal: firewall the port to the Prometheus
+    server first, and use the token and TLS as defence in depth.
+
+    ### Request methods
+
+    Routes are registered without method filters, so `HEAD` works and other
+    methods are not rejected. Prometheus only ever issues `GET`, which is what
+    this document describes.
+  license:
+    name: MIT
+    identifier: MIT
+  contact:
+    name: watchcat-agent
+    url: https://github.com/aritaone/watchcat-agent
+
+servers:
+  - url: "{scheme}://{host}:{port}"
+    description: A server running watchcat-agent.
+    variables:
+      scheme:
+        enum: [http, https]
+        default: http
+        description: https when the agent is configured with a TLS certificate and key.
+      host:
+        default: localhost
+        description: Hostname or IP address of the monitored server.
+      port:
+        default: "9800"
+        description: Value of server.listen_address in the agent config.
+
+tags:
+  - name: metrics
+    description: The Prometheus scrape endpoint.
+  - name: operations
+    description: Health checking and human-facing pages.
+
+security: []
+
+paths:
+  /metrics:
+    get:
+      tags: [metrics]
+      operationId: getMetrics
+      summary: Scrape host metrics
+      description: |
+        Returns the current value of every enabled collector in the Prometheus
+        text exposition format.
+
+        Metrics are gathered **lazily, once per request** — the agent reads no
+        counters between scrapes. Each collector runs concurrently and is
+        bounded by `server.scrape_timeout` (default 15s); set the Prometheus
+        job's `scrape_timeout` higher than that value.
+
+        A collector that fails does not fail the response. Its series are
+        omitted and `watchcat_scrape_success{collector="..."}` reports `0`,
+        which is the series to alert on.
+
+        Content negotiation follows the `Accept` header. Sending
+        `application/openmetrics-text; version=1.0.0` returns OpenMetrics
+        (terminated by an `# EOF` line); anything else returns the classic
+        text format. The exact response types are:
+
+        - `text/plain; version=0.0.4; charset=utf-8; escaping=underscores`
+        - `application/openmetrics-text; version=1.0.0; charset=utf-8; escaping=underscores`
+
+        `Accept-Encoding: gzip` is honoured and answered with
+        `Content-Encoding: gzip`.
+
+        At most 4 scrapes are served concurrently; further requests get `503`
+        rather than queueing.
+      security:
+        - {}
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Accept'
+        - $ref: '#/components/parameters/AcceptEncoding'
+      responses:
+        '200':
+          description: Metrics in the Prometheus exposition format.
+          headers:
+            Content-Encoding:
+              $ref: '#/components/headers/ContentEncoding'
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/PrometheusExposition'
+              example: |
+                # HELP watchcat_agent_build_info Build metadata of the running agent. Always 1.
+                # TYPE watchcat_agent_build_info gauge
+                watchcat_agent_build_info{build_date="2026-08-26T03:55:16Z",commit="none",goversion="go1.26.3",version="v0.1.0"} 1
+                # HELP watchcat_cpu_seconds_total Seconds the CPUs spent in each mode.
+                # TYPE watchcat_cpu_seconds_total counter
+                watchcat_cpu_seconds_total{cpu="all",mode="idle"} 1.0490672e+06
+                watchcat_cpu_seconds_total{cpu="all",mode="system"} 92944.05
+                watchcat_cpu_seconds_total{cpu="all",mode="user"} 142238.16
+                # HELP watchcat_memory_used_percent Percentage of physical memory in use.
+                # TYPE watchcat_memory_used_percent gauge
+                watchcat_memory_used_percent 71.2841796875
+                # HELP watchcat_filesystem_used_percent Percentage of the filesystem in use.
+                # TYPE watchcat_filesystem_used_percent gauge
+                watchcat_filesystem_used_percent{device="/dev/disk3s1s1",fstype="apfs",mountpoint="/"} 4.63
+                # HELP watchcat_scrape_success 1 if the source was collected without error, 0 otherwise.
+                # TYPE watchcat_scrape_success gauge
+                watchcat_scrape_success{collector="cpu"} 1
+                watchcat_scrape_success{collector="filesystem"} 1
+            application/openmetrics-text:
+              schema:
+                $ref: '#/components/schemas/PrometheusExposition'
+              example: |
+                # TYPE watchcat_memory_used_percent gauge
+                # HELP watchcat_memory_used_percent Percentage of physical memory in use.
+                watchcat_memory_used_percent 71.2841796875
+                # EOF
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: |
+            No metrics could be gathered at all. Partial failures return `200`
+            with `watchcat_scrape_success` at `0` instead.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: |
+                An error has occurred while serving metrics:
+        '503':
+          description: |
+            Either the collection exceeded `server.scrape_timeout`, or more than
+            4 scrapes were already in flight. Both are retryable.
+          content:
+            text/plain:
+              schema:
+                type: string
+              examples:
+                timeout:
+                  summary: Collection exceeded the configured timeout
+                  value: "Exceeded configured timeout of 15s.\n"
+                overloaded:
+                  summary: Too many concurrent scrapes
+                  value: "Limit of concurrent requests reached (4), try again later.\n"
+
+  /healthz:
+    get:
+      tags: [operations]
+      operationId: getHealth
+      summary: Liveness probe
+      description: |
+        Returns `200 ok` whenever the HTTP listener is up. Deliberately
+        unauthenticated so load balancers, Kubernetes probes and uptime checks
+        work without the shared secret.
+
+        This is a **liveness** check, not a readiness check: it reports that the
+        agent is serving, and does not run the collectors. To alert on whether
+        metrics are actually usable, use `watchcat_scrape_success` from
+        `/metrics` or Prometheus' own `up` series.
+      responses:
+        '200':
+          description: The agent is serving.
+          content:
+            text/plain:
+              schema:
+                type: string
+                const: "ok\n"
+              example: "ok\n"
+
+  /:
+    get:
+      tags: [operations]
+      operationId: getIndex
+      summary: Human-facing landing page
+      description: |
+        A small HTML page naming the build, the metrics path and the enabled
+        collectors — what you get from opening the port in a browser. Not
+        intended for machine consumption; parse `/metrics` instead.
+
+        Only the exact path `/` is served. Any other unregistered path returns
+        `404`.
+      responses:
+        '200':
+          description: The landing page.
+          content:
+            text/html:
+              schema:
+                type: string
+              example: |
+                <!doctype html>
+                <html><head><title>watchcat-agent</title></head><body>
+                <h1>watchcat-agent</h1>
+                <p>watchcat-agent v0.1.0 (commit none, built 2026-08-26T03:55:16Z, go1.26.3, linux/amd64)</p>
+                <p>Metrics: <a href="/metrics">/metrics</a></p>
+                <p>Health: <a href="/healthz">/healthz</a></p>
+                <p>Enabled collectors: <code>cpu, memory, filesystem, diskio, network, load, host, process</code></p>
+                </body></html>
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Shared secret from `server.bearer_token` (or the `WATCHCAT_BEARER_TOKEN`
+        environment variable). Compared in constant time, so a wrong token
+        leaks nothing through response timing.
+
+        In Prometheus, supply it with:
+
+        ```yaml
+        authorization:
+          type: Bearer
+          credentials_file: /etc/prometheus/watchcat.token
+        ```
+
+        The credentials file must not contain a trailing newline.
+
+  parameters:
+    Accept:
+      name: Accept
+      in: header
+      required: false
+      description: |
+        Selects the exposition format. Prometheus sends this automatically.
+      schema:
+        type: string
+        default: "text/plain;version=0.0.4"
+        examples:
+          - "text/plain;version=0.0.4"
+          - "application/openmetrics-text;version=1.0.0"
+    AcceptEncoding:
+      name: Accept-Encoding
+      in: header
+      required: false
+      description: Send `gzip` to have the response compressed.
+      schema:
+        type: string
+        examples:
+          - gzip
+
+  headers:
+    ContentEncoding:
+      description: Present as `gzip` when the client offered gzip in `Accept-Encoding`.
+      required: false
+      schema:
+        type: string
+        const: gzip
+    WWWAuthenticate:
+      description: Challenge returned with a `401`.
+      required: true
+      schema:
+        type: string
+        const: 'Bearer realm="watchcat"'
+
+  responses:
+    Unauthorized:
+      description: |
+        `server.bearer_token` is configured and the request carried no
+        `Authorization` header, or one that did not match exactly.
+      headers:
+        WWW-Authenticate:
+          $ref: '#/components/headers/WWWAuthenticate'
+      content:
+        text/plain:
+          schema:
+            type: string
+          example: "unauthorized\n"
+    NotFound:
+      description: No route is registered at this path.
+      content:
+        text/plain:
+          schema:
+            type: string
+          example: "404 page not found\n"
+
+  schemas:
+    PrometheusExposition:
+      type: string
+      title: Prometheus exposition format
+      description: |
+        Line-oriented plain text, not JSON. Each metric is preceded by `# HELP`
+        and `# TYPE` comments, then one line per series:
+        `name{label="value",...} <float> [timestamp]`.
+
+        Every series this agent emits is prefixed `watchcat_`, except the Go
+        runtime metrics (`go_*`) contributed when `collectors.go` is enabled.
+        Counters are cumulative — apply `rate()` in PromQL rather than reading
+        them directly.
+
+        Specification: https://prometheus.io/docs/instrumenting/exposition_formats/
+      example: |
+        # HELP watchcat_load1 1 minute load average.
+        # TYPE watchcat_load1 gauge
+        watchcat_load1 2.4423828125

@@ -1,0 +1,57 @@
+# watchcat-agent configuration
+#
+# Every value below is optional: the agent runs with sane defaults if this file
+# is missing entirely. Precedence is defaults < this file < WATCHCAT_* env vars
+# < command line flags.
+
+server:
+  # Bind to 0.0.0.0 so a remote Prometheus can scrape this host.
+  # Bind to 127.0.0.1 instead if Prometheus reaches you through a tunnel.
+  listen_address: "0.0.0.0:9800"
+  metrics_path: "/metrics"
+
+  # Shared secret required as "Authorization: Bearer <token>".
+  # Leave empty to disable authentication. Prefer WATCHCAT_BEARER_TOKEN so the
+  # secret does not sit in a world-readable file.
+  bearer_token: ""
+
+  # Serve HTTPS. Both must be set together.
+  tls_cert_file: ""
+  tls_key_file: ""
+
+  read_timeout: 10s
+  write_timeout: 30s
+  idle_timeout: 60s
+  # Hard bound on a single collection pass; keep it under Prometheus'
+  # scrape_timeout for that job.
+  scrape_timeout: 15s
+
+collectors:
+  cpu: true
+  memory: true
+  filesystem: true
+  diskio: true
+  network: true
+  load: true
+  host: true
+  process: true
+  go: true
+
+  # Emit one time series per core instead of one aggregate. Costly on big hosts.
+  per_cpu: false
+
+  filesystem_ignore_mount_points: "^/(dev|proc|sys|run|var/lib/docker/.+|var/lib/kubelet/.+)($|/)"
+  filesystem_ignore_fs_types: "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$"
+  network_ignore_devices: "^(lo|docker[0-9]|veth.*|br-.*|virbr.*|cni[0-9]|flannel.*|utun[0-9]+|awdl[0-9]+|llw[0-9]+)$"
+  diskio_ignore_devices: "^(ram|loop|fd|(h|s|v|xv)d[a-z]+[0-9]+|nvme[0-9]+n[0-9]+p[0-9]+|dm-|md|dasd)"
+
+# Constant labels stamped onto every metric this agent exports.
+# Keep these low-cardinality.
+labels: {}
+#  env: production
+#  role: api
+#  region: ap-northeast-1
+
+log:
+  level: info      # debug | info | warn | error
+  file: ""         # empty logs to stderr, which the service manager captures

@@ -1,0 +1,37 @@
+# Drop this job into your central Prometheus server's prometheus.yml.
+#
+# The agent is a pull target: Prometheus connects to each server on port 9800.
+# Make sure that port is reachable from Prometheus and firewalled off from
+# everything else.
+
+scrape_configs:
+  - job_name: watchcat
+    scrape_interval: 30s
+    # Must exceed the agent's own scrape_timeout.
+    scrape_timeout: 20s
+    metrics_path: /metrics
+
+    # Uncomment when the agent runs with tls_cert_file/tls_key_file.
+    # scheme: https
+    # tls_config:
+    #   ca_file: /etc/prometheus/watchcat-ca.pem
+    #   # For a self-signed agent certificate during testing only:
+    #   # insecure_skip_verify: true
+
+    # Uncomment when the agent runs with bearer_token.
+    # authorization:
+    #   type: Bearer
+    #   credentials_file: /etc/prometheus/watchcat.token
+
+    static_configs:
+      - targets:
+          - linux-box-1.internal:9800
+          - windows-box-1.internal:9800
+          - mac-build-1.internal:9800
+        labels:
+          env: production
+
+    # Prefer the agent's own hostname label over the scrape address.
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance

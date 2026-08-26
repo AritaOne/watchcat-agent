@@ -1,0 +1,13 @@
+# Lint config for the agent's OpenAPI description.
+#
+#   npx @redocly/cli lint api/openapi.yaml --config api/redocly.yaml
+
+extends:
+  - recommended
+
+rules:
+  # /healthz has no 4xx response to document: it is unauthenticated, registered
+  # without a method filter, and returns 200 whenever the listener is up.
+  # Inventing an error response here would describe behaviour the agent does
+  # not have.
+  operation-4xx-response: off
