@@ -18,19 +18,19 @@ server pulls metrics from it over HTTP.
 ### Linux / macOS
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aritaone/watchcat-agent/main/scripts/install.sh | sudo sh
+curl -fsSL https://github.com/aritaone/watchcat-agent/raw/main/scripts/install.sh | sudo sh
 ```
 
 With a shared secret and a custom port:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aritaone/watchcat-agent/main/scripts/install.sh | sudo LISTEN_ADDRESS=0.0.0.0:9800 BEARER_TOKEN=change-me sh
+curl -fsSL https://github.com/aritaone/watchcat-agent/raw/main/scripts/install.sh | sudo LISTEN_ADDRESS=0.0.0.0:9800 BEARER_TOKEN=change-me sh
 ```
 
 ### Windows (elevated PowerShell)
 
 ```powershell
-irm https://raw.githubusercontent.com/aritaone/watchcat-agent/main/scripts/install.ps1 -OutFile install.ps1; .\install.ps1 -BearerToken "change-me"
+irm https://github.com/aritaone/watchcat-agent/raw/main/scripts/install.ps1 -OutFile install.ps1; .\install.ps1 -BearerToken "change-me"
 ```
 
 The Windows script also opens the inbound firewall port for the Domain and
@@ -72,9 +72,16 @@ make test           # unit tests with the race detector
 make dist           # cross-compiled binaries + SHA256SUMS in ./dist
 ```
 
-`make dist` produces `linux/{amd64,arm64,arm}`, `darwin/{amd64,arm64}` and
-`windows/{amd64,arm64}`. Every target is CGO-free, so cross-compiling needs no
-toolchain beyond Go itself.
+`make dist` builds assets for `linux/{amd64,arm64,arm}`, `darwin/{amd64,arm64}`
+and `windows/{amd64,arm64}`, named
+`watchcat-agent_<version>_<os>_<arch>` (`.exe` on Windows), alongside a
+`SHA256SUMS` covering them. Every target is CGO-free, so cross-compiling needs
+no toolchain beyond Go itself.
+
+The release workflow additionally publishes each binary under a version-less
+alias, `watchcat-agent_<os>_<arch>`, which is what the install scripts fetch
+from `/releases/latest/download/`. Pass a `VERSION` to the scripts to pin the
+versioned name instead.
 
 ## Commands
 

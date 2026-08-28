@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # Install watchcat-agent as a background service on Linux or macOS.
 #
-#   curl -fsSL https://raw.githubusercontent.com/aritaone/watchcat-agent/main/scripts/install.sh | sudo sh
+#   curl -fsSL https://github.com/aritaone/watchcat-agent/raw/main/scripts/install.sh | sudo sh
 #
 # Options (environment variables):
 #   VERSION          release tag to install (default: latest)
