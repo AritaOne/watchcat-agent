@@ -128,12 +128,15 @@ paths:
                 watchcat_cpu_seconds_total{cpu="all",mode="idle"} 1.0490672e+06
                 watchcat_cpu_seconds_total{cpu="all",mode="system"} 92944.05
                 watchcat_cpu_seconds_total{cpu="all",mode="user"} 142238.16
-                # HELP watchcat_memory_used_percent Percentage of physical memory in use.
-                # TYPE watchcat_memory_used_percent gauge
-                watchcat_memory_used_percent 71.2841796875
-                # HELP watchcat_filesystem_used_percent Percentage of the filesystem in use.
-                # TYPE watchcat_filesystem_used_percent gauge
-                watchcat_filesystem_used_percent{device="/dev/disk3s1s1",fstype="apfs",mountpoint="/"} 4.63
+                # HELP watchcat_memory_total_bytes Total installed physical memory.
+                # TYPE watchcat_memory_total_bytes gauge
+                watchcat_memory_total_bytes 6.8719476736e+10
+                # HELP watchcat_memory_available_bytes Memory available for new applications without swapping.
+                # TYPE watchcat_memory_available_bytes gauge
+                watchcat_memory_available_bytes 1.9743305728e+10
+                # HELP watchcat_filesystem_size_bytes Total size of the filesystem.
+                # TYPE watchcat_filesystem_size_bytes gauge
+                watchcat_filesystem_size_bytes{device="/dev/disk3s1s1",fstype="apfs",mountpoint="/"} 9.94662584320e+11
                 # HELP watchcat_scrape_success 1 if the source was collected without error, 0 otherwise.
                 # TYPE watchcat_scrape_success gauge
                 watchcat_scrape_success{collector="cpu"} 1
@@ -142,9 +145,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/PrometheusExposition'
               example: |
-                # TYPE watchcat_memory_used_percent gauge
-                # HELP watchcat_memory_used_percent Percentage of physical memory in use.
-                watchcat_memory_used_percent 71.2841796875
+                # TYPE watchcat_memory_total_bytes gauge
+                # HELP watchcat_memory_total_bytes Total installed physical memory.
+                watchcat_memory_total_bytes 6.8719476736e+10
                 # EOF
         '401':
           $ref: '#/components/responses/Unauthorized'

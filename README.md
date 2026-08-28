@@ -212,8 +212,8 @@ All series are prefixed `watchcat_`. Counters are cumulative — use `rate()`.
 | Collector | Metrics |
 |---|---|
 | `cpu` | `cpu_seconds_total{cpu,mode}`, `cpu_cores`, `cpu_physical_cores` |
-| `memory` | `memory_{total,available,used,free,cached,buffers}_bytes`, `memory_used_percent`, `memory_swap_*` |
-| `filesystem` | `filesystem_{size,free,avail,used}_bytes`, `filesystem_used_percent`, `filesystem_files{,_free}`, `filesystem_readonly`, `filesystem_device_error` — labelled `device`, `mountpoint`, `fstype` |
+| `memory` | `memory_{total,available,used,free,cached,buffers}_bytes`, `memory_swap_*` |
+| `filesystem` | `filesystem_{size,free,avail,used}_bytes`, `filesystem_files{,_free}`, `filesystem_readonly`, `filesystem_device_error` — labelled `device`, `mountpoint`, `fstype` |
 | `diskio` | `disk_{reads,writes}_completed_total`, `disk_read_bytes_total`, `disk_written_bytes_total`, `disk_*_time_seconds_total`, `disk_io_now` |
 | `network` | `network_{receive,transmit}_{bytes,packets,errs,drop}_total` per `device` |
 | `load` | `load1`, `load5`, `load15` |
@@ -230,11 +230,14 @@ collector without failing the rest of the scrape.
 # CPU utilisation, per host
 100 - (avg by (instance) (rate(watchcat_cpu_seconds_total{mode="idle"}[5m])) * 100)
 
-# Memory in use
-watchcat_memory_used_percent
+# Memory in use, as a percentage
+100 * (1 - watchcat_memory_available_bytes / watchcat_memory_total_bytes)
+
+# Fleet-wide memory in use — sum the bytes, never average the percentages
+100 * (1 - sum(watchcat_memory_available_bytes) / sum(watchcat_memory_total_bytes))
 
 # Disks over 85% full
-watchcat_filesystem_used_percent > 85
+100 * (1 - watchcat_filesystem_avail_bytes / watchcat_filesystem_size_bytes) > 85
 
 # A collector is failing
 watchcat_scrape_success == 0

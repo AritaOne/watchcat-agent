@@ -30,12 +30,12 @@ collectors:
   cpu: true
   memory: true
   filesystem: true
-  diskio: true
-  network: true
-  load: true
-  host: true
-  process: true
-  go: true
+  diskio: false
+  network: false
+  load: false
+  host: false
+  process: false
+  go: false
 
   # Emit one time series per core instead of one aggregate. Costly on big hosts.
   per_cpu: false

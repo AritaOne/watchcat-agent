@@ -15,7 +15,6 @@ type filesystemCollector struct {
 	compiled *config.Compiled
 
 	size, free, avail, used *prometheus.Desc
-	usedPercent             *prometheus.Desc
 	files, filesFree        *prometheus.Desc
 	readonly                *prometheus.Desc
 	deviceError             *prometheus.Desc
@@ -30,7 +29,6 @@ func newFilesystemCollector(labels prometheus.Labels, compiled *config.Compiled)
 		free:        d("free_bytes", "Free space on the filesystem, including root-reserved space."),
 		avail:       d("avail_bytes", "Space available to unprivileged users."),
 		used:        d("used_bytes", "Space in use on the filesystem."),
-		usedPercent: d("used_percent", "Percentage of the filesystem in use."),
 		files:       d("files", "Total inodes on the filesystem."),
 		filesFree:   d("files_free", "Free inodes on the filesystem."),
 		readonly:    d("readonly", "1 if the filesystem is mounted read-only."),
@@ -79,7 +77,6 @@ func (c *filesystemCollector) Update(ctx context.Context, ch chan<- prometheus.M
 		g(c.free, float64(usage.Free))
 		g(c.avail, float64(usage.Free))
 		g(c.used, float64(usage.Used))
-		g(c.usedPercent, usage.UsedPercent)
 		g(c.files, float64(usage.InodesTotal))
 		g(c.filesFree, float64(usage.InodesFree))
 	}
