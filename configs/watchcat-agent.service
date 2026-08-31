@@ -24,6 +24,11 @@ DynamicUser=yes
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=read-only
+# The certificate collector reads the files named in collectors.certificate_paths.
+# Under DynamicUser the agent cannot read root-only directories such as
+# /etc/ssl/private; grant it what it needs, e.g.:
+#   SupplementaryGroups=ssl-cert
+#   ReadOnlyPaths=/etc/nginx/certs
 PrivateTmp=yes
 PrivateDevices=yes
 RestrictAddressFamilies=AF_INET AF_INET6

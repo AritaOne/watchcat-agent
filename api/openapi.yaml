@@ -227,7 +227,7 @@ paths:
                 <p>watchcat-agent v0.1.0 (commit none, built 2026-08-26T03:55:16Z, go1.26.3, linux/amd64)</p>
                 <p>Metrics: <a href="/metrics">/metrics</a></p>
                 <p>Health: <a href="/healthz">/healthz</a></p>
-                <p>Enabled collectors: <code>cpu, memory, filesystem, diskio, network, load, host, process</code></p>
+                <p>Enabled collectors: <code>cpu, memory, filesystem, diskio, network, load, host, process, certificate</code></p>
                 </body></html>
         '404':
           $ref: '#/components/responses/NotFound'

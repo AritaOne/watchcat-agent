@@ -8,6 +8,7 @@ package collector
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -83,6 +84,7 @@ func New(cfg *config.Config, log *slog.Logger) (*Collector, error) {
 	add(cc.Load, newLoadCollector(labels))
 	add(cc.Host, newHostCollector(labels))
 	add(cc.Process, newProcessCollector(labels))
+	add(cc.Certificate, newCertificateCollector(labels, certificatePaths(cfg)))
 
 	return c, nil
 }
@@ -127,6 +129,16 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 		}(sub)
 	}
 	wg.Wait()
+}
+
+// certificatePaths is the configured watch list plus the agent's own serving
+// certificate, so an agent with TLS on never silently serves an expired cert.
+func certificatePaths(cfg *config.Config) []string {
+	paths := slices.Clone(cfg.Collectors.CertificatePaths)
+	if cfg.TLSEnabled() && !slices.Contains(paths, cfg.Server.TLSCertFile) {
+		paths = append(paths, cfg.Server.TLSCertFile)
+	}
+	return paths
 }
 
 // desc is a small helper for building a fully qualified metric descriptor.

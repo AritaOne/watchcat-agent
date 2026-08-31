@@ -13,7 +13,7 @@ server:
   # Shared secret required as "Authorization: Bearer <token>".
   # Leave empty to disable authentication. Prefer WATCHCAT_BEARER_TOKEN so the
   # secret does not sit in a world-readable file.
-  bearer_token: ""
+  bearer_token: "SlJKgAXQKjoiQnZ2pzzUcruJlojehQhJtSu6LxAKths="
 
   # Serve HTTPS. Both must be set together.
   tls_cert_file: ""
@@ -30,15 +30,27 @@ collectors:
   cpu: true
   memory: true
   filesystem: true
-  diskio: false
-  network: false
-  load: false
-  host: false
-  process: false
-  go: false
+  diskio: true
+  network: true
+  load: true
+  host: true
+  process: true
+  go: true
+
+  # Report the expiry of X.509 certificates held on this host. With no paths
+  # listed it still watches the agent's own tls_cert_file, so leaving it on
+  # costs nothing.
+  certificate: true
 
   # Emit one time series per core instead of one aggregate. Costly on big hosts.
   per_cpu: false
+
+  # Certificate files or globs to watch. A glob matching nothing is silently
+  # ignored; a literal path that goes missing is reported as a read_error, so
+  # you find out when a certificate disappears.
+  certificate_paths: []
+  #  - /etc/nginx/certs/*.pem
+  #  - /etc/ssl/certs/site.crt
 
   filesystem_ignore_mount_points: "^/(dev|proc|sys|run|var/lib/docker/.+|var/lib/kubelet/.+)($|/)"
   filesystem_ignore_fs_types: "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$"

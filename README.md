@@ -100,7 +100,7 @@ Administrator (Windows).
 Run it in the foreground to try it out, no install required:
 
 ```bash
-./bin/watchcat-agent run --listen 127.0.0.1:9800
+./bin/watchcat-agent run --config configs/watchcat-agent.yaml --listen 127.0.0.1:9800
 ```
 
 ## Configuration
@@ -138,7 +138,10 @@ collectors:
   host: true
   process: true
   go: true
+  certificate: true
   per_cpu: false                   # one series per core; costly on big hosts
+  certificate_paths:               # files or globs; empty still watches tls_cert_file
+    - /etc/nginx/certs/*.pem
 
 labels:                            # stamped onto every metric, keep low-cardinality
   env: production
@@ -152,7 +155,8 @@ log:
 Environment overrides: `WATCHCAT_CONFIG`, `WATCHCAT_LISTEN_ADDRESS`,
 `WATCHCAT_BEARER_TOKEN`, `WATCHCAT_TLS_CERT_FILE`, `WATCHCAT_TLS_KEY_FILE`,
 `WATCHCAT_LOG_LEVEL`, `WATCHCAT_LOG_FILE`, `WATCHCAT_SCRAPE_TIMEOUT`,
-`WATCHCAT_PER_CPU`, `WATCHCAT_LABELS` (`env=prod,role=api`).
+`WATCHCAT_PER_CPU`, `WATCHCAT_CERTIFICATE_PATHS`, `WATCHCAT_LABELS`
+(`env=prod,role=api`).
 
 Keep the token out of the config file where you can — pass it through the
 environment instead, so a world-readable config never carries the secret.
@@ -219,6 +223,7 @@ All series are prefixed `watchcat_`. Counters are cumulative — use `rate()`.
 | `load` | `load1`, `load5`, `load15` |
 | `host` | `host_info{hostname,os,platform,…}`, `host_uptime_seconds`, `host_boot_time_seconds`, `host_time_seconds` |
 | `process` | `processes`, plus the agent's own `agent_cpu_seconds_total`, `agent_resident_memory_bytes`, `agent_open_fds`, `agent_threads` |
+| `certificate` | `certificate_not_after_seconds`, `certificate_not_before_seconds`, `certificate_info{subject,issuer,serial,dns_names}`, `certificate_read_error` — labelled `path`, `index` |
 | meta | `scrape_duration_seconds{collector}`, `scrape_success{collector}`, `agent_build_info` |
 
 `watchcat_scrape_success` is the metric to alert on: it goes to 0 for a single
@@ -238,6 +243,19 @@ collector without failing the rest of the scrape.
 
 # Disks over 85% full
 100 * (1 - watchcat_filesystem_avail_bytes / watchcat_filesystem_size_bytes) > 85
+
+# Certificates expiring within 30 days, soonest first
+sort(watchcat_certificate_not_after_seconds - time() < 30 * 86400)
+
+# Days left on each certificate, labelled with what it is for
+(watchcat_certificate_not_after_seconds - time()) / 86400
+  * on(path, index) group_left(subject, dns_names) watchcat_certificate_info
+
+# A certificate has already expired
+watchcat_certificate_not_after_seconds < time()
+
+# A watched certificate file went missing or stopped parsing
+watchcat_certificate_read_error == 1
 
 # A collector is failing
 watchcat_scrape_success == 0
@@ -279,6 +297,14 @@ with `watchcat-agent status`, `journalctl -u watchcat-agent` (Linux),
 
 **`watchcat_scrape_success{collector="filesystem"} == 0`** usually means an
 unreachable network mount. Add it to `filesystem_ignore_mount_points`.
+
+**`watchcat_certificate_read_error == 1`.** The agent cannot read the file. The
+usual cause is permissions: certificates often live in root-only directories
+such as `/etc/ssl/private`, and the bundled systemd unit runs the agent under
+`DynamicUser`. Grant just that path, for example with `SupplementaryGroups=ssl-cert`
+or `ReadOnlyPaths=/etc/nginx/certs` in the unit. The same metric goes to 1 when
+a path you named explicitly no longer exists, which is worth alerting on in its
+own right.
 
 **Too many series.** Turn off `per_cpu`, widen the `*_ignore_*` patterns, and
 keep `labels` low-cardinality.

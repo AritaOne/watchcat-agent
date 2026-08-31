@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 )
@@ -124,5 +125,51 @@ func TestTLSEnabled(t *testing.T) {
 	cfg.Server.TLSCertFile, cfg.Server.TLSKeyFile = "c.pem", "k.pem"
 	if !cfg.TLSEnabled() {
 		t.Error("TLS should be on when both files are set")
+	}
+}
+
+func TestCertificatePathsFromYAML(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "c.yaml")
+	body := `
+collectors:
+  certificate_paths:
+    - /etc/ssl/site.pem
+    - /etc/nginx/certs/*.pem
+`
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	want := []string{"/etc/ssl/site.pem", "/etc/nginx/certs/*.pem"}
+	if got := cfg.Collectors.CertificatePaths; !slices.Equal(got, want) {
+		t.Errorf("certificate_paths = %v, want %v", got, want)
+	}
+	if !cfg.Collectors.Certificate {
+		t.Error("certificate collector should be on by default")
+	}
+}
+
+func TestCertificatePathsFromEnv(t *testing.T) {
+	t.Setenv("WATCHCAT_CERTIFICATE_PATHS", "/etc/ssl/a.pem, /etc/ssl/b.pem ,")
+
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	want := []string{"/etc/ssl/a.pem", "/etc/ssl/b.pem"}
+	if got := cfg.Collectors.CertificatePaths; !slices.Equal(got, want) {
+		t.Errorf("certificate_paths = %v, want %v", got, want)
+	}
+}
+
+func TestValidateRejectsBadCertificateGlob(t *testing.T) {
+	cfg := Default()
+	cfg.Collectors.CertificatePaths = []string{"/etc/ssl/[.pem"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected a validation error for a malformed glob")
 	}
 }

@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -52,6 +53,13 @@ type Collectors struct {
 	Process    bool `yaml:"process"`
 	Go         bool `yaml:"go"`
 
+	// Certificate reports the validity window of X.509 certificates on this
+	// host. With no paths configured it watches only the agent's own serving
+	// certificate, so leaving it on costs nothing.
+	Certificate bool `yaml:"certificate"`
+	// CertificatePaths are files or globs to watch, e.g. /etc/nginx/certs/*.pem.
+	CertificatePaths []string `yaml:"certificate_paths"`
+
 	// PerCPU reports per-core CPU time in addition to the aggregate.
 	PerCPU bool `yaml:"per_cpu"`
 
@@ -92,6 +100,7 @@ func Default() *Config {
 		Collectors: Collectors{
 			CPU: true, Memory: true, Filesystem: true, DiskIO: true,
 			Network: true, Load: true, Host: true, Process: true, Go: true,
+			Certificate:                 true,
 			PerCPU:                      false,
 			FilesystemIgnoreMountPoints: "^/(dev|proc|sys|run|var/lib/docker/.+|var/lib/kubelet/.+)($|/)",
 			FilesystemIgnoreFSTypes:     "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$",
@@ -162,6 +171,10 @@ func applyEnv(cfg *Config) {
 			cfg.Collectors.PerCPU = b
 		}
 	}
+	// WATCHCAT_CERTIFICATE_PATHS="/etc/ssl/a.pem,/etc/nginx/certs/*.pem"
+	if v := os.Getenv("WATCHCAT_CERTIFICATE_PATHS"); v != "" {
+		cfg.Collectors.CertificatePaths = splitAndTrim(v)
+	}
 	// WATCHCAT_LABELS="env=prod,role=api" adds constant labels to every metric.
 	if v := os.Getenv("WATCHCAT_LABELS"); v != "" {
 		if cfg.Labels == nil {
@@ -190,10 +203,26 @@ func (c *Config) Validate() error {
 	if c.Server.ScrapeTimeout <= 0 {
 		return fmt.Errorf("server.scrape_timeout must be positive")
 	}
+	for _, pattern := range c.Collectors.CertificatePaths {
+		if _, err := filepath.Match(pattern, ""); err != nil {
+			return fmt.Errorf("collectors.certificate_paths: bad pattern %q: %w", pattern, err)
+		}
+	}
 	if _, err := c.Compile(); err != nil {
 		return err
 	}
 	return nil
+}
+
+// splitAndTrim parses a comma separated environment value into a clean list.
+func splitAndTrim(v string) []string {
+	var out []string
+	for _, part := range strings.Split(v, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 // Compile pre-compiles every ignore pattern.
