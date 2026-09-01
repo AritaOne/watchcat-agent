@@ -231,9 +231,20 @@ collector without failing the rest of the scrape.
 
 ### Useful queries
 
+#### CPU
+
 ```promql
 # CPU utilisation, per host
 100 - (avg by (instance) (rate(watchcat_cpu_seconds_total{mode="idle"}[5m])) * 100)
+```
+
+#### Memory
+
+```promql
+# Breakdown for a stacked graph — these three always sum to exactly total
+watchcat_memory_total_bytes - watchcat_memory_available_bytes    # used, unreclaimable
+watchcat_memory_available_bytes - watchcat_memory_free_bytes     # cache, buffers, purgeable
+watchcat_memory_free_bytes                                       # genuinely untouched
 
 # Memory in use, as a percentage
 100 * (1 - watchcat_memory_available_bytes / watchcat_memory_total_bytes)
@@ -241,9 +252,57 @@ collector without failing the rest of the scrape.
 # Fleet-wide memory in use — sum the bytes, never average the percentages
 100 * (1 - sum(watchcat_memory_available_bytes) / sum(watchcat_memory_total_bytes))
 
+# Swap in use, guarded against hosts with no swap configured
+100 * watchcat_memory_swap_used_bytes / watchcat_memory_swap_total_bytes
+  and watchcat_memory_swap_total_bytes > 0
+
+# Actively swapping out — the signal that correlates with pain
+rate(watchcat_memory_swap_out_bytes_total[5m]) > 0
+```
+
+Derive the breakdown from `available`, not from `cached`: gopsutil leaves
+`watchcat_memory_cached_bytes` and `_buffers_bytes` at 0 on macOS and Windows, so a
+`used + cached + free` stack silently drops every reclaimable page on those hosts.
+Never alert on `free` either — a healthy Linux box keeps it near zero on purpose,
+because the kernel spends what it can on page cache.
+
+#### Disk
+
+```promql
 # Disks over 85% full
 100 * (1 - watchcat_filesystem_avail_bytes / watchcat_filesystem_size_bytes) > 85
 
+# Average read latency across all disks, seconds per operation
+sum by (instance) (rate(watchcat_disk_read_time_seconds_total[5m]))
+/
+sum by (instance) (rate(watchcat_disk_reads_completed_total[5m]))
+
+# Average write latency across all disks
+sum by (instance) (rate(watchcat_disk_write_time_seconds_total[5m]))
+/
+sum by (instance) (rate(watchcat_disk_writes_completed_total[5m]))
+
+# Slow reads, but only where there is enough traffic for the average to mean anything
+(
+  sum by (instance) (rate(watchcat_disk_read_time_seconds_total[5m]))
+  /
+  sum by (instance) (rate(watchcat_disk_reads_completed_total[5m]))
+) > 0.05
+and
+sum by (instance) (rate(watchcat_disk_reads_completed_total[5m])) > 10
+
+# Fraction of wall-clock each device spent busy
+rate(watchcat_disk_io_time_seconds_total[5m])
+```
+
+Sum numerator and denominator separately rather than averaging per-device ratios —
+otherwise an idle disk doing two slow operations outweighs a busy one doing ten
+thousand. These counters include queueing, so the result is time per request, not
+device service time.
+
+#### Certificates
+
+```promql
 # Certificates expiring within 30 days, soonest first
 sort(watchcat_certificate_not_after_seconds - time() < 30 * 86400)
 
@@ -256,13 +315,37 @@ watchcat_certificate_not_after_seconds < time()
 
 # A watched certificate file went missing or stopped parsing
 watchcat_certificate_read_error == 1
+```
+
+#### Host and agent health
+
+```promql
+# Host rebooted in the last 10 minutes
+watchcat_host_uptime_seconds < 600
 
 # A collector is failing
 watchcat_scrape_success == 0
 
-# Host rebooted in the last 10 minutes
-watchcat_host_uptime_seconds < 600
+# Slowest collectors across the fleet
+topk(10, watchcat_scrape_duration_seconds)
+
+# Collection wall-time per host — collectors run concurrently, so max, never sum
+max by (instance) (watchcat_scrape_duration_seconds)
+
+# Overhead outside the agent: network transit plus serialisation
+scrape_duration_seconds{job="watchcat"}
+- on(instance) group_left()
+max by (instance) (watchcat_scrape_duration_seconds)
+
+# Collection eating more than half the agent's 15s scrape_timeout
+max_over_time((max by (instance) (watchcat_scrape_duration_seconds))[10m:1m]) > 7.5
 ```
+
+`scrape_duration_seconds` without the prefix is Prometheus' own end-to-end
+measurement; `watchcat_scrape_duration_seconds` is the agent's per-collector
+breakdown. Subtracting one from the other separates a slow network from a slow
+collector. When the agent is unreachable neither exists, so `up{job="watchcat"} == 0`
+is the alert that actually fires.
 
 ## Security
 

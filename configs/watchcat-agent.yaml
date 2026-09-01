@@ -54,7 +54,7 @@ collectors:
 
   filesystem_ignore_mount_points: "^/(dev|proc|sys|run|var/lib/docker/.+|var/lib/kubelet/.+)($|/)"
   filesystem_ignore_fs_types: "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$"
-  network_ignore_devices: "^(lo|docker[0-9]|veth.*|br-.*|virbr.*|cni[0-9]|flannel.*|utun[0-9]+|awdl[0-9]+|llw[0-9]+)$"
+  network_ignore_devices: "^(lo[0-9]*|docker[0-9]|veth.*|br-.*|virbr.*|cni[0-9]|flannel.*|utun[0-9]+|awdl[0-9]+|llw[0-9]+)$"
   diskio_ignore_devices: "^(ram|loop|fd|(h|s|v|xv)d[a-z]+[0-9]+|nvme[0-9]+n[0-9]+p[0-9]+|dm-|md|dasd)"
 
 # Constant labels stamped onto every metric this agent exports.

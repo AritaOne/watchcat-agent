@@ -106,11 +106,17 @@ func TestCompileIgnorePatterns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Compile: %v", err)
 	}
-	if !c.IgnoreNetDevices.MatchString("lo") {
-		t.Error("loopback should be ignored by default")
+	// Loopback is "lo" on Linux and "lo0" on macOS and the BSDs; both must go.
+	for _, dev := range []string{"lo", "lo0", "lo1"} {
+		if !c.IgnoreNetDevices.MatchString(dev) {
+			t.Errorf("loopback device %q should be ignored by default", dev)
+		}
 	}
-	if c.IgnoreNetDevices.MatchString("eth0") {
-		t.Error("eth0 should not be ignored")
+	// Real interfaces must survive, including ones that merely start with "lo".
+	for _, dev := range []string{"eth0", "en0", "ens5", "lolcat0"} {
+		if c.IgnoreNetDevices.MatchString(dev) {
+			t.Errorf("%q should not be ignored", dev)
+		}
 	}
 	if !c.IgnoreFSTypes.MatchString("tmpfs") && !c.IgnoreFSTypes.MatchString("sysfs") {
 		t.Error("pseudo filesystems should be ignored")

@@ -104,7 +104,7 @@ func Default() *Config {
 			PerCPU:                      false,
 			FilesystemIgnoreMountPoints: "^/(dev|proc|sys|run|var/lib/docker/.+|var/lib/kubelet/.+)($|/)",
 			FilesystemIgnoreFSTypes:     "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$",
-			NetworkIgnoreDevices:        "^(lo|docker[0-9]|veth.*|br-.*|virbr.*|cni[0-9]|flannel.*|utun[0-9]+|awdl[0-9]+|llw[0-9]+)$",
+			NetworkIgnoreDevices:        "^(lo[0-9]*|docker[0-9]|veth.*|br-.*|virbr.*|cni[0-9]|flannel.*|utun[0-9]+|awdl[0-9]+|llw[0-9]+)$",
 			DiskIOIgnoreDevices:         "^(ram|loop|fd|(h|s|v|xv)d[a-z]+[0-9]+|nvme[0-9]+n[0-9]+p[0-9]+|dm-|md|dasd)",
 		},
 		Labels: map[string]string{},
