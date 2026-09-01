@@ -13,7 +13,7 @@ server:
   # Shared secret required as "Authorization: Bearer <token>".
   # Leave empty to disable authentication. Prefer WATCHCAT_BEARER_TOKEN so the
   # secret does not sit in a world-readable file.
-  bearer_token: "SlJKgAXQKjoiQnZ2pzzUcruJlojehQhJtSu6LxAKths="
+  bearer_token: ""
 
   # Serve HTTPS. Both must be set together.
   tls_cert_file: ""
