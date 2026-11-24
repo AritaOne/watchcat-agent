@@ -181,15 +181,19 @@ func TestValidateRejectsBadCertificateGlob(t *testing.T) {
 }
 
 func TestCustomDir(t *testing.T) {
+	// A temp dir is absolute on every OS; "/etc/..." has no drive letter, so
+	// Windows does not consider it absolute. Single quotes keep Windows
+	// backslashes literal in YAML.
+	dir := filepath.Join(t.TempDir(), "custom.d")
 	path := filepath.Join(t.TempDir(), "c.yaml")
-	if err := os.WriteFile(path, []byte("collectors:\n  custom_dir: /etc/watchcat-agent/custom.d\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("collectors:\n  custom_dir: '"+dir+"'\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if got := cfg.Collectors.CustomDir; got != "/etc/watchcat-agent/custom.d" {
+	if got := cfg.Collectors.CustomDir; got != dir {
 		t.Errorf("custom_dir = %q", got)
 	}
 
