@@ -60,6 +60,10 @@ type Collectors struct {
 	// CertificatePaths are files or globs to watch, e.g. /etc/nginx/certs/*.pem.
 	CertificatePaths []string `yaml:"certificate_paths"`
 
+	// CustomDir is a folder of *.conf files holding "name:value" lines, each
+	// exported as watchcat_custom_<name>. Empty disables the custom collector.
+	CustomDir string `yaml:"custom_dir"`
+
 	// PerCPU reports per-core CPU time in addition to the aggregate.
 	PerCPU bool `yaml:"per_cpu"`
 
@@ -175,6 +179,9 @@ func applyEnv(cfg *Config) {
 	if v := os.Getenv("WATCHCAT_CERTIFICATE_PATHS"); v != "" {
 		cfg.Collectors.CertificatePaths = splitAndTrim(v)
 	}
+	if v := os.Getenv("WATCHCAT_CUSTOM_DIR"); v != "" {
+		cfg.Collectors.CustomDir = v
+	}
 	// WATCHCAT_LABELS="env=prod,role=api" adds constant labels to every metric.
 	if v := os.Getenv("WATCHCAT_LABELS"); v != "" {
 		if cfg.Labels == nil {
@@ -207,6 +214,9 @@ func (c *Config) Validate() error {
 		if _, err := filepath.Match(pattern, ""); err != nil {
 			return fmt.Errorf("collectors.certificate_paths: bad pattern %q: %w", pattern, err)
 		}
+	}
+	if d := c.Collectors.CustomDir; d != "" && !filepath.IsAbs(d) {
+		return fmt.Errorf("collectors.custom_dir must be an absolute path: got %q", d)
 	}
 	if _, err := c.Compile(); err != nil {
 		return err

@@ -142,6 +142,7 @@ collectors:
   per_cpu: false                   # one series per core; costly on big hosts
   certificate_paths:               # files or globs; empty still watches tls_cert_file
     - /etc/nginx/certs/*.pem
+  custom_dir: /etc/watchcat-agent/custom.d   # *.conf files of name:value lines; empty disables
 
 labels:                            # stamped onto every metric, keep low-cardinality
   env: production
@@ -155,7 +156,7 @@ log:
 Environment overrides: `WATCHCAT_CONFIG`, `WATCHCAT_LISTEN_ADDRESS`,
 `WATCHCAT_BEARER_TOKEN`, `WATCHCAT_TLS_CERT_FILE`, `WATCHCAT_TLS_KEY_FILE`,
 `WATCHCAT_LOG_LEVEL`, `WATCHCAT_LOG_FILE`, `WATCHCAT_SCRAPE_TIMEOUT`,
-`WATCHCAT_PER_CPU`, `WATCHCAT_CERTIFICATE_PATHS`, `WATCHCAT_LABELS`
+`WATCHCAT_PER_CPU`, `WATCHCAT_CERTIFICATE_PATHS`, `WATCHCAT_CUSTOM_DIR`, `WATCHCAT_LABELS`
 (`env=prod,role=api`).
 
 Keep the token out of the config file where you can — pass it through the
@@ -224,6 +225,7 @@ All series are prefixed `watchcat_`. Counters are cumulative — use `rate()`.
 | `host` | `host_info{hostname,os,platform,…}`, `host_uptime_seconds`, `host_boot_time_seconds`, `host_time_seconds` |
 | `process` | `processes`, plus the agent's own `agent_cpu_seconds_total`, `agent_resident_memory_bytes`, `agent_open_fds`, `agent_threads` |
 | `certificate` | `certificate_not_after_seconds`, `certificate_not_before_seconds`, `certificate_info{subject,issuer,serial,dns_names}`, `certificate_read_error` — labelled `path`, `index` |
+| `custom` | `custom_<name>{file}` for every `name:value` line in `custom_dir/*.conf`, plus `custom_read_error{file}` and `custom_dir_error` |
 | meta | `scrape_duration_seconds{collector}`, `scrape_success{collector}`, `agent_build_info` |
 
 `watchcat_scrape_success` is the metric to alert on: it goes to 0 for a single
@@ -317,6 +319,34 @@ watchcat_certificate_not_after_seconds < time()
 watchcat_certificate_read_error == 1
 ```
 
+#### Custom metrics
+
+Any program on the host can publish values by dropping a `.conf` file into
+`custom_dir`:
+
+```
+# /etc/watchcat-agent/custom.d/backup.conf
+backup_ok:1
+backup_last_success_seconds:1795489458
+```
+
+becomes `watchcat_custom_backup_ok{file="backup.conf"} 1` and
+`watchcat_custom_backup_last_success_seconds{file="backup.conf"} 1795489458`.
+Only `*.conf` files directly in the folder are read; subfolders, dotfiles and
+other extensions are ignored. Names must match `[a-zA-Z_][a-zA-Z0-9_]*` and
+values must be numbers; a bad line is logged and skipped, a repeated name keeps
+its first value, and `read_error` / `dir_error` are reserved. Write files
+atomically — to a temporary name, then `mv` into place — so a scrape never sees
+half a file.
+
+```promql
+# Backup job reported failure
+watchcat_custom_backup_ok == 0
+
+# Custom metrics folder or a file in it is unreadable
+watchcat_custom_dir_error == 1 or watchcat_custom_read_error == 1
+```
+
 #### Host and agent health
 
 ```promql
@@ -388,6 +418,11 @@ such as `/etc/ssl/private`, and the bundled systemd unit runs the agent under
 or `ReadOnlyPaths=/etc/nginx/certs` in the unit. The same metric goes to 1 when
 a path you named explicitly no longer exists, which is worth alerting on in its
 own right.
+
+**`watchcat_custom_dir_error == 1`.** `custom_dir` does not exist or the agent
+cannot list it. Under the bundled systemd unit the agent runs as a `DynamicUser`,
+so the folder and its `.conf` files must be world-readable (or granted with
+`ReadOnlyPaths=`).
 
 **Too many series.** Turn off `per_cpu`, widen the `*_ignore_*` patterns, and
 keep `labels` low-cardinality.

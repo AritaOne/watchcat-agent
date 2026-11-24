@@ -179,3 +179,34 @@ func TestValidateRejectsBadCertificateGlob(t *testing.T) {
 		t.Fatal("expected a validation error for a malformed glob")
 	}
 }
+
+func TestCustomDir(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "c.yaml")
+	if err := os.WriteFile(path, []byte("collectors:\n  custom_dir: /etc/watchcat-agent/custom.d\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.Collectors.CustomDir; got != "/etc/watchcat-agent/custom.d" {
+		t.Errorf("custom_dir = %q", got)
+	}
+
+	env := filepath.Join(t.TempDir(), "custom.d")
+	t.Setenv("WATCHCAT_CUSTOM_DIR", env)
+	if cfg, err = Load(path); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := cfg.Collectors.CustomDir; got != env {
+		t.Errorf("env should override file: custom_dir = %q, want %q", got, env)
+	}
+}
+
+func TestValidateRejectsRelativeCustomDir(t *testing.T) {
+	cfg := Default()
+	cfg.Collectors.CustomDir = "custom.d"
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected a validation error for a relative custom_dir")
+	}
+}

@@ -85,6 +85,7 @@ func New(cfg *config.Config, log *slog.Logger) (*Collector, error) {
 	add(cc.Host, newHostCollector(labels))
 	add(cc.Process, newProcessCollector(labels))
 	add(cc.Certificate, newCertificateCollector(labels, certificatePaths(cfg)))
+	add(cc.CustomDir != "", newCustomCollector(labels, cc.CustomDir, log))
 
 	return c, nil
 }

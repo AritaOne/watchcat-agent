@@ -52,6 +52,12 @@ collectors:
   #  - /etc/nginx/certs/*.pem
   #  - /etc/ssl/certs/site.crt
 
+  # Folder of custom metrics files. Every *.conf file directly inside it holds
+  # "name:value" lines, each exported as watchcat_custom_<name>{file="<file>"}.
+  # Blank lines and lines starting with # are ignored. Leave empty to disable.
+  custom_dir: ""
+  #  custom_dir: /etc/watchcat-agent/custom.d
+
   filesystem_ignore_mount_points: "^/(dev|proc|sys|run|var/lib/docker/.+|var/lib/kubelet/.+)($|/)"
   filesystem_ignore_fs_types: "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$"
   network_ignore_devices: "^(lo[0-9]*|docker[0-9]|veth.*|br-.*|virbr.*|cni[0-9]|flannel.*|utun[0-9]+|awdl[0-9]+|llw[0-9]+)$"
